@@ -15,8 +15,8 @@ service.put('/service/:intent/:port', (req, res, next) => {
     ? `[${req.connection.remoteAddress}]`
     : req.connection.remoteAddress;
 
-serviceRegistry.add(serviceIntent, serviceIp, servicePort);
-  res.json({result: `${serviceIntent} at ${serviceIp}:${servicePort}`});
+  serviceRegistry.add(serviceIntent, serviceIp, servicePort);
+    res.json({result: `${serviceIntent} at ${serviceIp}:${servicePort}`});
 })
 
 module.exports = service;
