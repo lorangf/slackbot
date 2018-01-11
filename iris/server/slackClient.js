@@ -3,6 +3,7 @@
 const { RtmClient, CLIENT_EVENTS, RTM_EVENTS } = require('@slack/client');
 let rtm = null;
 let nlp = null;
+let registry = null;
 // Cache of data
 const appData = {};
 
@@ -12,34 +13,42 @@ function handleOnAuthenticated(connectData) {
 }
 
 function handleOnMessage(message) {
+  if ( message.text.toLowerCase().includes('iris') ) {
+    nlp.ask(message.text, (err, res) => {
+      if (err) {
+        console.log(err);
+        return;
+      }
 
-  nlp.ask(message.text, (err, res) => {
-    if (err) {
-      console.log(err);
-      return;
-    }
+      try {
+        if ( !res.intent || !res.intent[0] || !res.intent[0].value ) {
+          throw new Error("Could not extract intent.")
+        }
 
-    if (!res.intent) {
-      return rtm.sendMessage("Sorry I don't know what you are talking about", message.channel);
-    } else if (res.intent[0].value == 'time' && res.location) {
-      return rtm.sendMessage(`I don't yet know the time in ${res.location[0].value}`, message.channel);
-    } else {
-      console.log(res);
-      return rtm.sendMessage("Sorry I don't know what you are talking about", message.channel);
-    }
+        const intent = require('./intents/' + res.intent[0].value + 'Intent');
 
-    rtm.sendMessage('Sorry I did not understand.', message.channel, function messageSent() {
-      // Optional callback
-    })
-  });
+        intent.process(res, registry, (error, response) => {
+          if ( error ) {
+            console.log(message);
+            return;
+          }
+          return rtm.sendMessage(response, message.channel);
+        })
 
+      } catch(e) {
+        console.log(err);
+        console.log(res);
+        rtm.sendMessage("Sorry I don't know what you are talking about", message.channel);
+      }
+    });
+  }
 }
 
 function addAuthenticatedHandler(rtm, handler) {
   rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, handler);
 }
 
-module.exports.init = function stackClient(token, myLogLevel, nlpClient) {
+module.exports.init = function stackClient(token, myLogLevel, nlpClient, serviceRegistry) {
   // Initialize the RTM client with the recommended settings. Using the defaults for these
   // settings is deprecated.
   rtm = new RtmClient(token, {
@@ -49,6 +58,7 @@ module.exports.init = function stackClient(token, myLogLevel, nlpClient) {
   });
 
   nlp = nlpClient;
+  registry = serviceRegistry;
 
   // The client will emit an RTM.AUTHENTICATED event on when the connection data is avaiable
   // (before the connection is open)
